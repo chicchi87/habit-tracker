@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Habit Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Habit Tracker</h1>
+      <button type="button" class="btn-outline" onclick="toggleSettings()">API設定</button>
+    </header>
+
+    <!-- GAS接続設定（localStorageに保存） -->
+    <div id="settingsPanel" class="card">
+      <div class="form-group">
+        <label for="gasUrl">GAS ウェブアプリURL</label>
+        <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div class="form-group">
+        <label for="gasToken">合言葉（SECRET_TOKEN）</label>
+        <input type="password" id="gasToken" placeholder="my-habit-secret-2026">
+      </div>
+      <button type="button" class="btn-primary" onclick="saveSettings()">設定を保存して同期</button>
+    </div>
+
+    <!-- 記録フォーム -->
+    <div class="card">
+      <div class="grid-2">
+        <div>
+          <label for="dateInput">日付</label>
+          <input type="date" id="dateInput">
+        </div>
+        <div>
+          <label for="categoryInput">カテゴリ</label>
+          <select id="categoryInput">
+            <option value="運動">運動</option>
+            <option value="プログラミング">学習・プログラミング</option>
+            <option value="英語">学習・英語</option>
+            <option value="読書">読書</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="minutesInput">時間（分）</label>
+        <input type="number" id="minutesInput" value="30" step="15" min="5">
+        <div class="presets">
+          <button type="button" onclick="setMinutes(15)">15分</button>
+          <button type="button" onclick="setMinutes(30)">30分</button>
+          <button type="button" onclick="setMinutes(45)">45分</button>
+          <button type="button" onclick="setMinutes(60)">60分</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="memoInput">メモ（任意）</label>
+        <input type="text" id="memoInput" placeholder="例: エアロバイク50分、アルゴリズム実装など">
+      </div>
+
+      <button type="button" id="submitBtn" class="btn-primary" onclick="addLog()">スプレッドシートに記録する</button>
+    </div>
+
+    <!-- ログ一覧 -->
+    <div class="card">
+      <div class="status-bar">
+        <span id="statusText">待機中</span>
+        <button type="button" class="btn-outline btn-sm" onclick="fetchLogs()">再読み込み</button>
+      </div>
+      <div id="logList"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
