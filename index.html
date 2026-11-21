@@ -3,75 +3,195 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily Habit Tracker</title>
+  <title>Habit Studio — Daily Discipline Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Habit Tracker</h1>
-      <button type="button" class="btn-outline" onclick="toggleSettings()">API設定</button>
+  <div class="app-shell">
+    <!-- トップバー -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <div>
+          <h1>Habit Studio</h1>
+          <p class="sync-status" id="statusText">同期待機中</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button type="button" class="pill-btn date-pill" id="todayJumpBtn" onclick="jumpToToday()" title="今日の日付に戻る">
+          <span class="icon-cal"></span>
+          <span id="selectedDateBadge">2026-11-21</span>
+        </button>
+        <button type="button" class="pill-btn primary-pill" onclick="openCatModal()">＋ 項目追加</button>
+        <button type="button" class="pill-btn ghost-pill" onclick="toggleSettings()">API設定</button>
+      </div>
     </header>
 
-    <!-- GAS接続設定（localStorageに保存） -->
-    <div id="settingsPanel" class="card">
-      <div class="form-group">
-        <label for="gasUrl">GAS ウェブアプリURL</label>
-        <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    <!-- GAS接続設定ドロワー -->
+    <section id="settingsPanel" class="surface settings-drawer">
+      <div class="settings-grid">
+        <div class="field">
+          <label for="gasUrl">GAS ウェブアプリURL</label>
+          <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="field">
+          <label for="gasToken">合言葉（SECRET_TOKEN）</label>
+          <input type="password" id="gasToken" placeholder="my-habit-secret-2026">
+        </div>
       </div>
-      <div class="form-group">
-        <label for="gasToken">合言葉（SECRET_TOKEN）</label>
-        <input type="password" id="gasToken" placeholder="my-habit-secret-2026">
+      <div class="settings-footer">
+        <button type="button" class="btn-solid" onclick="saveSettings()">設定を保存して同期</button>
       </div>
-      <button type="button" class="btn-primary" onclick="saveSettings()">設定を保存して同期</button>
-    </div>
+    </section>
 
-    <!-- 記録フォーム -->
-    <div class="card">
-      <div class="grid-2">
+    <!-- ファーストビュー 1: 分野別の連続継続日数＆累積時間 -->
+    <section class="kpi-strip" id="catKpiGrid" aria-label="分野別サマリー"></section>
+
+    <!-- ファーストビュー 2: 直近14日間の積み上げ推移グラフ -->
+    <section class="surface chart-section">
+      <div class="section-head">
         <div>
-          <label for="dateInput">日付</label>
-          <input type="date" id="dateInput">
+          <h2 class="section-title">14日間の継続リズム</h2>
+          <p class="section-sub">バーをクリックすると該当日の詳細・振り返りへ切り替わります</p>
         </div>
-        <div>
-          <label for="categoryInput">カテゴリ</label>
-          <select id="categoryInput">
-            <option value="運動">運動</option>
-            <option value="プログラミング">学習・プログラミング</option>
-            <option value="英語">学習・英語</option>
-            <option value="読書">読書</option>
-          </select>
+        <div class="legend-row" id="chartLegend"></div>
+      </div>
+      <div class="chart-stage">
+        <div class="bar-chart" id="barChart"></div>
+      </div>
+    </section>
+
+    <!-- メインワークスペース（2カラム） -->
+    <main class="workspace-grid">
+      <!-- 左カラム: セッション都度加算＆本日の履歴 -->
+      <div class="workspace-col">
+        <section class="surface">
+          <div class="section-head">
+            <div>
+              <h2 class="section-title">セッションを記録</h2>
+              <p class="section-sub">実施するたびに選択日の累積時間へ加算されます</p>
+            </div>
+          </div>
+
+          <div class="step-label">1. 分野を選択</div>
+          <div class="cat-grid" id="catSelectGrid"></div>
+
+          <div class="step-label">2. 実施時間（分）</div>
+          <div class="time-row" id="timeChips">
+            <button type="button" class="time-chip" data-min="15" onclick="selectTime(15)">+15m</button>
+            <button type="button" class="time-chip" data-min="30" onclick="selectTime(30)">+30m</button>
+            <button type="button" class="time-chip selected" data-min="50" onclick="selectTime(50)">+50m</button>
+            <button type="button" class="time-chip" data-min="60" onclick="selectTime(60)">+60m</button>
+            <button type="button" class="time-chip" data-min="90" onclick="selectTime(90)">+90m</button>
+          </div>
+
+          <div class="step-label">3. セッションメモ（任意）</div>
+          <input type="text" id="sessionMemo" class="text-input" placeholder="例: 科目Bアルゴリズム演習、エアロバイクなど">
+
+          <button type="button" id="submitSessionBtn" class="btn-solid btn-record" onclick="addSession()">
+            ＋「運動 50分」を累積に加算する
+          </button>
+
+          <!-- 選択日のセッション内訳 -->
+          <div class="session-history">
+            <div class="history-head">
+              <span id="sessionListTitle">選択日のセッション内訳</span>
+              <span class="day-total-badge" id="dayTotalLabel">日計 0分</span>
+            </div>
+            <div id="sessionList" class="session-list"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 右カラム: 週次サマリー・継続カレンダー・一言振り返り -->
+      <div class="workspace-col">
+        <!-- 週ごとの合計時間 -->
+        <section class="surface">
+          <div class="section-head">
+            <h2 class="section-title">週間トータル</h2>
+            <select id="weekSelector" class="select-compact" onchange="renderWeekly()">
+              <option value="0">今週（月〜日）</option>
+              <option value="1">先週</option>
+              <option value="2">2週前</option>
+            </select>
+          </div>
+          <div class="week-hero">
+            <span class="week-range-text" id="weekRangeLabel">-</span>
+            <strong class="week-total-num" id="weekTotalTime">0h 0m</strong>
+          </div>
+          <div id="weeklyBreakdown" class="weekly-bars"></div>
+        </section>
+
+        <!-- 月間継続カレンダー -->
+        <section class="surface">
+          <div class="section-head">
+            <div class="cal-nav">
+              <button type="button" class="icon-btn" onclick="shiftMonth(-1)" aria-label="前月">‹</button>
+              <h2 class="section-title" id="calMonthTitle">2026年 11月</h2>
+              <button type="button" class="icon-btn" onclick="shiftMonth(1)" aria-label="翌月">›</button>
+            </div>
+            <div class="heatmap-scale">
+              <span>少</span>
+              <i class="lv0"></i><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i>
+              <span>多</span>
+            </div>
+          </div>
+          <div class="cal-weekdays">
+            <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </section>
+
+        <!-- 毎日の一言振り返り -->
+        <section class="surface">
+          <div class="section-head">
+            <h2 class="section-title" id="reflectionTitle">一言振り返り</h2>
+            <span class="section-sub">カレンダーの該当日へ保存</span>
+          </div>
+          <textarea id="reflectionInput" class="textarea-input" rows="2" placeholder="今日の気づき・集中度・明日への一言..."></textarea>
+          <div class="reflection-actions">
+            <button type="button" id="saveReflectionBtn" class="btn-outline-dark" onclick="saveReflection()">振り返りを保存</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- 項目追加モーダル -->
+  <div id="catModal" class="modal-backdrop" onclick="if(event.target===this) closeCatModal()">
+    <div class="modal-card">
+      <div class="section-head">
+        <h2 class="section-title">新しい習慣項目を追加</h2>
+        <button type="button" class="icon-btn" onclick="closeCatModal()">✕</button>
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label for="newCatName">分野名</label>
+        <input type="text" id="newCatName" class="text-input" placeholder="例: 統計学、情報セキュリティマネジメント">
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label for="newCatTarget">1日の目標目安（分）</label>
+        <input type="number" id="newCatTarget" class="text-input" value="30" step="15" min="15">
+      </div>
+      <div class="field" style="margin-bottom:18px;">
+        <label>アクセントカラー</label>
+        <div class="swatch-row" id="colorSwatches">
+          <button type="button" class="swatch selected" data-color="#e11d48" style="background:#e11d48;" onclick="selectSwatch(this)"></button>
+          <button type="button" class="swatch" data-color="#0284c7" style="background:#0284c7;" onclick="selectSwatch(this)"></button>
+          <button type="button" class="swatch" data-color="#0d9488" style="background:#0d9488;" onclick="selectSwatch(this)"></button>
+          <button type="button" class="swatch" data-color="#d97706" style="background:#d97706;" onclick="selectSwatch(this)"></button>
+          <button type="button" class="swatch" data-color="#7c3aed" style="background:#7c3aed;" onclick="selectSwatch(this)"></button>
+          <button type="button" class="swatch" data-color="#4f46e5" style="background:#4f46e5;" onclick="selectSwatch(this)"></button>
         </div>
       </div>
-
-      <div class="form-group">
-        <label for="minutesInput">時間（分）</label>
-        <input type="number" id="minutesInput" value="30" step="15" min="5">
-        <div class="presets">
-          <button type="button" onclick="setMinutes(15)">15分</button>
-          <button type="button" onclick="setMinutes(30)">30分</button>
-          <button type="button" onclick="setMinutes(45)">45分</button>
-          <button type="button" onclick="setMinutes(60)">60分</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="memoInput">メモ（任意）</label>
-        <input type="text" id="memoInput" placeholder="例: エアロバイク50分、アルゴリズム実装など">
-      </div>
-
-      <button type="button" id="submitBtn" class="btn-primary" onclick="addLog()">スプレッドシートに記録する</button>
-    </div>
-
-    <!-- ログ一覧 -->
-    <div class="card">
-      <div class="status-bar">
-        <span id="statusText">待機中</span>
-        <button type="button" class="btn-outline btn-sm" onclick="fetchLogs()">再読み込み</button>
-      </div>
-      <div id="logList"></div>
+      <button type="button" class="btn-solid" onclick="createNewCategory()">この項目を追加する</button>
     </div>
   </div>
+
+  <div id="toast" class="toast"></div>
 
   <script src="app.js"></script>
 </body>
